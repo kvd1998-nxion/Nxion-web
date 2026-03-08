@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, FileText } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 const NAV_LINKS = [
@@ -71,6 +71,19 @@ export function Navbar() {
             ))}
           </div>
 
+          {/* Invoice quick-access pill */}
+          <Link
+            to="/invoice"
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors duration-200"
+            style={{ color: '#64FFDA', borderColor: 'rgba(100,255,218,0.3)' }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(100,255,218,0.08)' }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent' }}
+            title="Create Invoice"
+          >
+            <FileText size={12} />
+            Invoice
+          </Link>
+
           {/* CTA */}
           <Link
             to="/contact"
@@ -128,6 +141,14 @@ export function Navbar() {
                   {label}
                 </NavLink>
               ))}
+              <Link
+                to="/invoice"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 text-sm font-medium py-2 transition-colors"
+                style={{ color: '#8892B0' }}
+              >
+                <FileText size={14} /> Invoice
+              </Link>
               <Link
                 to="/contact"
                 onClick={() => setMobileOpen(false)}

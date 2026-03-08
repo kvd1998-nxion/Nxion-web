@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
 import { Navbar } from './components/layout/Navbar'
 import { Footer } from './components/layout/Footer'
@@ -10,6 +10,8 @@ const KnowledgeHub     = lazy(() => import('./pages/KnowledgeHub'))
 const KnowledgeArticle = lazy(() => import('./pages/KnowledgeArticle'))
 const About            = lazy(() => import('./pages/About'))
 const Contact          = lazy(() => import('./pages/Contact'))
+const InvoicePage      = lazy(() => import('./pages/InvoicePage'))
+const InvoicePreview   = lazy(() => import('./pages/InvoicePreview'))
 
 function PageLoader() {
   return (
@@ -51,27 +53,39 @@ function NotFound() {
   )
 }
 
+// InvoicePreview has its own fixed action bar — suppress site chrome
+function AppShell() {
+  const { pathname } = useLocation()
+  const isPreview = pathname === '/invoice/preview'
+
+  return (
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#0A192F' }}>
+      {!isPreview && <Navbar />}
+      <div className="flex-1">
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/"                element={<Home />} />
+            <Route path="/knowledge"       element={<KnowledgeHub />} />
+            <Route path="/knowledge/:slug" element={<KnowledgeArticle />} />
+            <Route path="/about"           element={<About />} />
+            <Route path="/contact"         element={<Contact />} />
+            <Route path="/invoice"         element={<InvoicePage />} />
+            <Route path="/invoice/preview" element={<InvoicePreview />} />
+            <Route path="*"               element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </div>
+      {!isPreview && <Footer />}
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <HelmetProvider>
       <BrowserRouter>
         <ScrollToTop />
-        <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#0A192F' }}>
-          <Navbar />
-          <div className="flex-1">
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                <Route path="/"                element={<Home />} />
-                <Route path="/knowledge"       element={<KnowledgeHub />} />
-                <Route path="/knowledge/:slug" element={<KnowledgeArticle />} />
-                <Route path="/about"           element={<About />} />
-                <Route path="/contact"         element={<Contact />} />
-                <Route path="*"               element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </div>
-          <Footer />
-        </div>
+        <AppShell />
       </BrowserRouter>
     </HelmetProvider>
   )

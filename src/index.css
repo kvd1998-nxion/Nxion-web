@@ -66,3 +66,38 @@
   background: #020C1B !important;
   color: #E6F1FF;
 }
+
+/* ─── Print / PDF (Invoice) ──────────────────────────────────────────────── */
+@media print {
+  .no-print { display: none !important; }
+
+  html, body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .invoice-preview-wrapper {
+    background-color: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .invoice-sheet {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+
+  #invoice-document {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  @page {
+    size: letter;
+    margin: 0.75in;
+  }
+}
