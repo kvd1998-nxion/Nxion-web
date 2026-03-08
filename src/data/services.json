@@ -1,0 +1,30 @@
+[
+  {
+    "id": "ai-governance",
+    "icon": "Brain",
+    "title": "AI-Augmented Data Governance",
+    "description": "Enterprise AI governance frameworks grounded in data maturity assessments, compliance mapping, and ROI-driven policy design.",
+    "tags": ["LLM Governance", "Data Lineage", "GDPR", "CCPA"]
+  },
+  {
+    "id": "ml-engineering",
+    "icon": "Cpu",
+    "title": "Scalable ML Engineering",
+    "description": "Production-grade ML pipelines built on Apache Spark, dbt, and cloud-native warehouses — from feature engineering to model serving.",
+    "tags": ["MLOps", "Apache Spark", "Feature Stores", "dbt"]
+  },
+  {
+    "id": "ethical-ai",
+    "icon": "Shield",
+    "title": "Ethical AI Frameworks",
+    "description": "Systematic bias auditing, explainability tooling (XAI), and responsible AI policy design aligned with emerging regulatory standards.",
+    "tags": ["XAI", "Fairness", "Model Cards", "AI Act"]
+  },
+  {
+    "id": "cloud-native",
+    "icon": "Cloud",
+    "title": "Resilient Cloud-Native Architecture",
+    "description": "Multi-cloud and hybrid infrastructure design with FinOps practices, zero-trust security, and infrastructure-as-code at scale.",
+    "tags": ["AWS", "GCP", "Terraform", "FinOps"]
+  }
+]
