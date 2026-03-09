@@ -223,7 +223,7 @@ export default function InvoicePage() {
                     onChange={e => set('consultantName', e.target.value)}
                     onFocus={() => setFocused('consultantName')}
                     onBlur={() => setFocused(null)}
-                    placeholder="e.g. Lasya Muvva"
+                    placeholder="e.g. Jhon Doe"
                     className={inputCls}
                     style={getFieldStyle('consultantName', focused, errors)}
                   />
@@ -236,7 +236,7 @@ export default function InvoicePage() {
                     onChange={e => set('position', e.target.value)}
                     onFocus={() => setFocused('position')}
                     onBlur={() => setFocused(null)}
-                    placeholder="e.g. Java Developer"
+                    placeholder="e.g. Architect"
                     className={inputCls}
                     style={getFieldStyle('position', focused, errors)}
                   />
@@ -486,8 +486,8 @@ export default function InvoicePage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-4">
                       {[
                         { field: 'paymentCompany', label: 'Company Name', placeholder: 'Nxion Consulting LLC' },
-                        { field: 'bankName',        label: 'Bank Name',    placeholder: 'Chase' },
-                        { field: 'accountNumber',   label: 'Account #',   placeholder: '819866093' },
+                        { field: 'bankName',        label: 'Bank Name',    placeholder: 'JPM Chase' },
+                        { field: 'accountNumber',   label: 'Account #',   placeholder: '8198989898' },
                         { field: 'routingNumber',   label: 'Routing #',   placeholder: '044000037' },
                       ].map(({ field, label, placeholder }) => (
                         <div key={field}>
