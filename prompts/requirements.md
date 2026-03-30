@@ -187,7 +187,7 @@ Capture qualified leads with enough context to respond meaningfully. Primary con
 ## Feature 6 — Invoice Generator (Form)
 
 ### Purpose
-Allow the Nxion team to generate professional client invoices directly from the website, eliminating manual invoice creation in Word or Excel.
+Allow the Nxion team to generate professional monthly consulting invoices directly from the website, eliminating manual invoice creation in Word or Excel.
 
 ### Requirements
 
@@ -204,45 +204,84 @@ The form is organised into five input sections:
 | Field | Type | Notes |
 |---|---|---|
 | Client Company Name | Text | Required |
-| Client Address (Street) | Text | Required |
-| Client Address (City, State, ZIP) | Text | Required |
-| Client Reference Code (Sticker) | Text | Required; short code used in invoice number, e.g. `ASCII` |
+| Client Address | Textarea | Required; multi-line street + city/state/ZIP |
 
 **Section 3 — Billing Period**
 | Field | Type | Notes |
 |---|---|---|
-| Start Date | Date picker | Required |
-| End Date | Date picker | Required; must be ≥ start date |
+| Invoice Date | Date picker | Required; defaults to today |
+| Billing Month | Select dropdown | Required; January–December |
+| Year | Select dropdown | Required; current year ± range |
 
-**Section 4 — Daily Hours**
-- Dynamically rendered day-by-day inputs based on the selected date range
-- One numeric input per calendar day between start and end dates
-- Maximum 14 days rendered (enforced by `getDaysInRange`)
-- Each input labelled with the formatted date (e.g., `Mon, Nov 4`)
+- Billing Month and Year selects are used instead of `<input type="month">` for full cross-browser compatibility (Safari does not support `type="month"`)
+- Selected month + year are stored internally as `YYYY-MM` string (`billingMonthYear`)
+- Selecting a month/year dynamically renders **4 or 5 weekly rows** depending on the number of days in the selected month:
+  - 4 weeks: February in non-leap years (28 days)
+  - 5 weeks: all other months (29–31 days)
+- Week rows resize reactively when month changes; existing entries are preserved
 
-**Section 5 — Billing Rate**
+**Section 3 — Weekly Hours & Deliverables** *(rendered after month is selected)*
+- One row per week (Week 1 through Week 4 or 5), each row contains:
+  - Week label badge (`Week 1` … `Week 5`)
+  - Focus / Deliverables text input (optional; describes work done that week)
+  - Hours numeric input (0–999, step 0.5)
+
+**Section 4 — Billing Rate**
 | Field | Type | Notes |
 |---|---|---|
 | Hourly Rate (USD) | Number | Required; used for total calculation |
 
+**Section 5 — Payment Details** *(collapsible)*
+| Field | Type | Notes |
+|---|---|---|
+| Company Name | Text | Defaults to `Nxion Consulting LLC` |
+| Bank Name | Text | Defaults to `Chase` |
+| Account # | Text | Optional |
+| Routing # | Text | Optional |
+
 #### FR-6.2 Live Preview Bar
 - Display a live-updating summary bar above the form showing:
-  - Generated invoice number: `NX-{MMDDYYYY}-{MMDDYYYY}-{STICKER}`
-  - Total hours calculated
+  - Generated invoice number: `NXION-{MONTH}-{YEAR}`
+  - Total hours (sum of all weekly hours)
   - Total amount formatted as currency (e.g., `$8,736.00`)
+- Updates reactively as the user fills in the form
 
 #### FR-6.3 Invoice Number Algorithm
 ```
-Format:  NX-{start MMDDYYYY}-{end MMDDYYYY}-{CLIENT_STICKER}
-Example: NX-11022024-11082024-ASCII
+Format:  NXION-{FULL_MONTH_UPPERCASE}-{YEAR}
+Example: NXION-MARCH-2026
 ```
+- Derived from `billingMonthYear` (`YYYY-MM`) using a static month name lookup
+- No client code or date range in the invoice number
 
-#### FR-6.4 Form Submission
-- On submit, validate all required fields
+#### FR-6.4 Week Count Rule
+| Days in month | Weeks rendered |
+|---|---|
+| 28 (Feb, non-leap) | 4 |
+| 29–31 (all others) | 5 |
+
+Week definitions (fixed 7-day chunks):
+- Week 1: days 1–7 · Week 2: days 8–14 · Week 3: days 15–21 · Week 4: days 22–28
+- Week 5: days 29–end *(only when month > 28 days)*
+
+#### FR-6.5 Validation
+| Field | Rule |
+|---|---|
+| Consultant Name | Required |
+| Position | Required |
+| Client Name | Required |
+| Client Address | Required |
+| Invoice Date | Required |
+| Billing Month + Year | Both required (billingMonthYear must be set) |
+| Weekly Hours | At least one week must have hours > 0 |
+| Billing Rate | Required, must be > 0 |
+
+#### FR-6.6 Form Submission
+- On submit, validate all required fields; show inline animated errors for failures
 - Navigate to `/invoice/preview` passing all computed data via React Router state
 - No data written to localStorage, URL params, or any backend
 
-#### FR-6.5 SEO
+#### FR-6.7 SEO
 - Page title: `Invoice Generator | Nxion`
 - Canonical URL: `https://nxion.org/invoice`
 - Meta robots: `noindex` (internal tool, should not appear in search results)
@@ -257,23 +296,43 @@ Display a print-ready, professional invoice and allow the user to download it as
 ### Requirements
 
 #### FR-7.1 Invoice Document Layout
-The rendered `InvoiceDocument` must include:
+The `InvoiceDocument` renders three clearly labelled sections (top to bottom):
 
-| Section | Content |
+**Header**
+| Side | Content |
 |---|---|
-| Header | Nxion logo/wordmark, invoice number, invoice date |
-| Bill To | Client company name and full address |
-| From | Consultant name and role |
-| Billing Period | Start date – end date (formatted as MM/DD/YYYY) |
-| Services Table | Columns: Date, Hours; one row per working day |
-| Totals Row | Total hours, hourly rate, total amount as currency |
-| Amount in Words | e.g. "Eight Thousand Seven Hundred Thirty Six Dollars Only" |
-| Payment Info | Standard payment terms and any bank/transfer details |
+| Left | Nxion logo, "Consulting" subtext, email, website |
+| Right | Bill To (client name + address), Invoice #, Invoice Date, Billing Period (month + year) |
+
+**Centered title:** "INVOICE" + billing month/year subtitle
+
+**Section 1 — Payment Summary** *(high-visibility, navy-bordered box)*
+| Row | Content |
+|---|---|
+| Description | "Consulting Services" |
+| Consultant | Name and Role |
+| Hourly Rate | Formatted as `$XX.00/hr` |
+| Total Hours | Sum of all weekly hours |
+| — divider — | |
+| Total Amount Due | Bold, large — the visual centrepiece |
+| Amount in words | e.g. "Eight Thousand Seven Hundred Thirty Six Dollars Only" |
+
+**Section 2 — Payment Instructions** *(light grey box)*
+- Company Name, Bank Name, Account #, Routing # in a 2-column labelled grid
+
+**Section 3 — Service Summary** *(weekly table at bottom)*
+| Column | Content |
+|---|---|
+| Week | Week 1 … Week 4 or 5 |
+| Primary Focus / Deliverables | Free-text entered per week |
+| Hours | Numeric hours; `—` if zero |
+| Footer row | TOTAL HOURS = sum |
 
 #### FR-7.2 Styling Constraints
 - `InvoiceDocument` must use **100% inline styles** (no Tailwind utility classes)
 - Reason: Tailwind classes may be stripped or overridden by browser print engines
 - Background must be white; text must be dark (print-safe)
+- All month name resolution uses a static `MONTH_NAMES` array — never `toLocaleDateString()` — to prevent locale-dependent rendering failures
 
 #### FR-7.3 PDF Download
 - "Download PDF" button calls `window.print()`
@@ -282,7 +341,7 @@ The rendered `InvoiceDocument` must include:
 - No third-party PDF library (no jsPDF, no Puppeteer)
 
 #### FR-7.4 Action Bar
-- Fixed bar at top of screen with: "Edit Invoice" (back to form) and "Download PDF" buttons
+- Fixed bar at top of screen with: "Back", "Edit", and "Download PDF" buttons
 - Action bar suppresses site Navbar and Footer (AppShell route-aware check)
 - Action bar marked with `.no-print` CSS class so it disappears in print output
 
