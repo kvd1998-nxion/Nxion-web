@@ -58,57 +58,65 @@ export function formatDisplayDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
 }
 
-/** "2024-11-02" → "11022024"  (used inside invoice number) */
-export function formatDateCompact(dateStr) {
-  if (!dateStr) return ''
-  const d = localDate(dateStr)
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${mm}${dd}${d.getFullYear()}`
-}
-
 /** "2024-11-02" → "November 2024" */
 export function formatMonthYear(dateStr) {
   if (!dateStr) return ''
   return localDate(dateStr).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
-/** "2024-11-02" → "Monday, Nov 2, 2024" */
-export function formatDayLabel(dateStr) {
-  return localDate(dateStr).toLocaleDateString('en-US', {
-    weekday: 'long', month: 'short', day: 'numeric', year: 'numeric',
-  })
-}
+// ─── Month name lookup (locale-independent) ───────────────────────────────────
 
-/** "2024-11-02" → "Mon" */
-export function formatDayShort(dateStr) {
-  return localDate(dateStr).toLocaleDateString('en-US', { weekday: 'short' })
+export const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+/** "2025-01" → { year: 2025, month: 1 } — safe parse of YYYY-MM */
+function parseMonthYear(billingMonthYear) {
+  if (!billingMonthYear) return null
+  const parts = billingMonthYear.split('-')
+  const year  = parseInt(parts[0], 10)
+  const month = parseInt(parts[1], 10)
+  if (isNaN(year) || isNaN(month) || month < 1 || month > 12) return null
+  return { year, month }
 }
 
 // ─── Invoice Number ───────────────────────────────────────────────────────────
 
-export function generateInvoiceNumber(startDate, endDate, clientSticker) {
-  if (!startDate || !endDate || !clientSticker) return 'NX-PENDING'
-  return `NX-${formatDateCompact(startDate)}-${formatDateCompact(endDate)}-${clientSticker.toUpperCase().replace(/\s+/g, '')}`
+/**
+ * "2025-01" → "NXION-JANUARY-2025"
+ * billingMonthYear is a YYYY-MM string from <input type="month">
+ */
+export function generateMonthlyInvoiceNumber(billingMonthYear) {
+  const parsed = parseMonthYear(billingMonthYear)
+  if (!parsed) return 'NXION-PENDING'
+  return `NXION-${MONTH_NAMES[parsed.month - 1].toUpperCase()}-${parsed.year}`
 }
 
-// ─── Date Range ───────────────────────────────────────────────────────────────
+/** "2025-01" → "January 2025" */
+export function formatBillingMonthLabel(billingMonthYear) {
+  const parsed = parseMonthYear(billingMonthYear)
+  if (!parsed) return ''
+  return `${MONTH_NAMES[parsed.month - 1]} ${parsed.year}`
+}
 
-/** Returns array of "YYYY-MM-DD" strings between start and end (inclusive, max 14 days) */
-export function getDaysInRange(startDate, endDate) {
-  if (!startDate || !endDate) return []
-  const start = localDate(startDate)
-  const end = localDate(endDate)
-  if (start > end) return []
-  const days = []
-  const cur = new Date(start)
-  let safety = 0
-  while (cur <= end && safety < 14) {
-    days.push(cur.toISOString().split('T')[0])
-    cur.setDate(cur.getDate() + 1)
-    safety++
-  }
-  return days
+// ─── Week Count ───────────────────────────────────────────────────────────────
+
+/**
+ * Returns 4 or 5 depending on how many days the month has.
+ * Billing week chunks: Week 1 = days 1–7, Week 2 = 8–14, Week 3 = 15–21,
+ * Week 4 = 22–28, Week 5 = 29–end (only when month has > 28 days).
+ *
+ * "2025-01" → 5  (January has 31 days)
+ * "2025-02" → 4  (February 2025 has 28 days)
+ * "2024-02" → 5  (February 2024 is a leap year, 29 days)
+ */
+export function getWeekCountForMonth(billingMonthYear) {
+  if (!billingMonthYear) return 4
+  const [year, month] = billingMonthYear.split('-').map(Number)
+  // new Date(year, month, 0) → last day of the month (month is 1-based here)
+  const daysInMonth = new Date(year, month, 0).getDate()
+  return daysInMonth > 28 ? 5 : 4
 }
 
 // ─── Currency ─────────────────────────────────────────────────────────────────

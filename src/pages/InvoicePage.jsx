@@ -4,11 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FileText, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { SEOHead } from '../components/seo/SEOHead'
 import {
-  generateInvoiceNumber,
-  getDaysInRange,
-  formatDayLabel,
+  generateMonthlyInvoiceNumber,
+  getWeekCountForMonth,
   formatCurrency,
-  formatMonthYear,
+  MONTH_NAMES,
 } from '../lib/invoiceUtils'
 import { cn } from '../lib/utils'
 
@@ -73,79 +72,83 @@ function SectionTitle({ num, title, subtitle }) {
 }
 
 // ─── Validation ───────────────────────────────────────────────────────────────
-function validate(form, days) {
+function validate(form) {
   const e = {}
   if (!form.consultantName.trim()) e.consultantName = 'Required'
   if (!form.position.trim())       e.position       = 'Required'
   if (!form.clientName.trim())     e.clientName     = 'Required'
   if (!form.clientAddress.trim())  e.clientAddress  = 'Required'
-  if (!form.clientSticker.trim())  e.clientSticker  = 'Required (e.g. "ASCII")'
   if (!form.invoiceDate)           e.invoiceDate    = 'Required'
-  if (!form.startDate)             e.startDate      = 'Required'
-  if (!form.endDate)               e.endDate        = 'Required'
-  if (form.startDate && form.endDate && form.startDate > form.endDate)
-    e.endDate = 'End date must be after start date'
+  if (!form.billingMonthYear)      e.billingMonthYear = 'Required'
   if (!form.billingRate || Number(form.billingRate) <= 0)
     e.billingRate = 'Enter a valid billing rate'
-  const totalHours = days.reduce((sum, d) => sum + (Number(form.dailyHours[d]) || 0), 0)
-  if (totalHours === 0) e.dailyHours = 'Enter at least one hour for the billing period'
+  const totalHours = form.weeklyData.reduce((sum, w) => sum + (Number(w.hours) || 0), 0)
+  if (totalHours === 0) e.weeklyData = 'Enter at least one hour across any week'
   return e
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const TODAY = new Date().toISOString().split('T')[0]
 
+function makeWeeks(count) {
+  return Array.from({ length: count }, () => ({ hours: '', focus: '' }))
+}
+
 const EMPTY = {
-  consultantName: '',
-  position: '',
-  clientName: '',
-  clientAddress: '',
-  clientSticker: '',
-  billingMonth: '',
-  invoiceDate: TODAY,
-  startDate: '',
-  endDate: '',
-  dailyHours: {},
-  billingRate: '',
-  paymentCompany: 'Nxion Consulting LLC',
-  bankName: 'Chase',
-  accountNumber: '',
-  routingNumber: '',
+  consultantName:   '',
+  position:         '',
+  clientName:       '',
+  clientAddress:    '',
+  billingMonthYear: '',
+  invoiceDate:      TODAY,
+  weeklyData:       makeWeeks(4),
+  billingRate:      '',
+  paymentCompany:   'Nxion Consulting LLC',
+  bankName:         'Chase',
+  accountNumber:    '',
+  routingNumber:    '',
 }
 
 export default function InvoicePage() {
   const navigate = useNavigate()
-  const [form, setForm]         = useState(EMPTY)
-  const [errors, setErrors]     = useState({})
-  const [focused, setFocused]   = useState(null)
-  const [payOpen, setPayOpen]   = useState(false)
+  const [form, setForm]       = useState(EMPTY)
+  const [errors, setErrors]   = useState({})
+  const [focused, setFocused] = useState(null)
+  const [payOpen, setPayOpen] = useState(false)
 
-  // Derive days when dates change
-  const days = getDaysInRange(form.startDate, form.endDate)
-  const totalHours  = days.reduce((s, d) => s + (Number(form.dailyHours[d]) || 0), 0)
+  // Resize weeklyData when billing month changes — preserve existing entries
+  useEffect(() => {
+    if (!form.billingMonthYear) return
+    const count = getWeekCountForMonth(form.billingMonthYear)
+    setForm(f => ({
+      ...f,
+      weeklyData: Array.from({ length: count }, (_, i) =>
+        f.weeklyData[i] ?? { hours: '', focus: '' }
+      ),
+    }))
+  }, [form.billingMonthYear]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const totalHours  = form.weeklyData.reduce((s, w) => s + (Number(w.hours) || 0), 0)
   const billingRate = Number(form.billingRate) || 0
   const totalAmount = totalHours * billingRate
-  const invoiceNumber = generateInvoiceNumber(form.startDate, form.endDate, form.clientSticker)
-
-  // Sync billingMonth when startDate changes
-  useEffect(() => {
-    if (form.startDate)
-      setForm(f => ({ ...f, billingMonth: formatMonthYear(form.startDate) }))
-  }, [form.startDate])
+  const invoiceNumber = generateMonthlyInvoiceNumber(form.billingMonthYear)
 
   function set(field, value) {
     setForm(f => ({ ...f, [field]: value }))
     if (errors[field]) setErrors(e => ({ ...e, [field]: undefined }))
   }
 
-  function setHours(day, val) {
-    setForm(f => ({ ...f, dailyHours: { ...f.dailyHours, [day]: val } }))
-    if (errors.dailyHours) setErrors(e => ({ ...e, dailyHours: undefined }))
+  function setWeek(index, key, value) {
+    setForm(f => {
+      const updated = f.weeklyData.map((w, i) => i === index ? { ...w, [key]: value } : w)
+      return { ...f, weeklyData: updated }
+    })
+    if (errors.weeklyData) setErrors(e => ({ ...e, weeklyData: undefined }))
   }
 
   function handleSubmit(e) {
     e.preventDefault()
-    const errs = validate(form, days)
+    const errs = validate(form)
     if (Object.keys(errs).length) { setErrors(errs); return }
     navigate('/invoice/preview', {
       state: {
@@ -223,7 +226,7 @@ export default function InvoicePage() {
                     onChange={e => set('consultantName', e.target.value)}
                     onFocus={() => setFocused('consultantName')}
                     onBlur={() => setFocused(null)}
-                    placeholder="e.g. Jhon Doe"
+                    placeholder="e.g. John Doe"
                     className={inputCls}
                     style={getFieldStyle('consultantName', focused, errors)}
                   />
@@ -252,7 +255,7 @@ export default function InvoicePage() {
             >
               <SectionTitle num="2" title="Client Information" subtitle="Appears in the 'Bill To' section of the invoice" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
-                <div>
+                <div className="sm:col-span-2">
                   <Label required>Client / Company Name</Label>
                   <input
                     value={form.clientName}
@@ -264,20 +267,6 @@ export default function InvoicePage() {
                     style={getFieldStyle('clientName', focused, errors)}
                   />
                   <FieldError msg={errors.clientName} />
-                </div>
-                <div>
-                  <Label required>Client Sticker / Code</Label>
-                  <input
-                    value={form.clientSticker}
-                    onChange={e => set('clientSticker', e.target.value)}
-                    onFocus={() => setFocused('clientSticker')}
-                    onBlur={() => setFocused(null)}
-                    placeholder="e.g. ASCII  (used in invoice #)"
-                    className={inputCls}
-                    style={getFieldStyle('clientSticker', focused, errors)}
-                    maxLength={12}
-                  />
-                  <FieldError msg={errors.clientSticker} />
                 </div>
               </div>
               <div>
@@ -296,119 +285,161 @@ export default function InvoicePage() {
               </div>
             </motion.div>
 
-            {/* ── Section 3: Invoice Date + Billing Period ── */}
+            {/* ── Section 3: Billing Month + Weekly Hours ── */}
             <motion.div
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
               className={sectionCls} style={sectionStyle}
             >
-              <SectionTitle num="3" title="Billing Period" subtitle="Select the week range — daily hour inputs will appear automatically" />
+              <SectionTitle
+                num="3"
+                title="Billing Period"
+                subtitle="Select a month — weekly rows appear automatically (4 weeks for Feb non-leap, 5 for all others)"
+              />
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
-                <div>
-                  <Label required>Invoice Date</Label>
-                  <input
-                    type="date"
-                    value={form.invoiceDate}
-                    onChange={e => set('invoiceDate', e.target.value)}
-                    onFocus={() => setFocused('invoiceDate')}
-                    onBlur={() => setFocused(null)}
-                    className={inputCls}
-                    style={{ ...getFieldStyle('invoiceDate', focused, errors), colorScheme: 'dark' }}
-                  />
-                  <FieldError msg={errors.invoiceDate} />
-                </div>
-                <div>
-                  <Label required>Week Start Date</Label>
-                  <input
-                    type="date"
-                    value={form.startDate}
-                    onChange={e => set('startDate', e.target.value)}
-                    onFocus={() => setFocused('startDate')}
-                    onBlur={() => setFocused(null)}
-                    className={inputCls}
-                    style={{ ...getFieldStyle('startDate', focused, errors), colorScheme: 'dark' }}
-                  />
-                  <FieldError msg={errors.startDate} />
-                </div>
-                <div>
-                  <Label required>Week End Date</Label>
-                  <input
-                    type="date"
-                    value={form.endDate}
-                    min={form.startDate || undefined}
-                    onChange={e => set('endDate', e.target.value)}
-                    onFocus={() => setFocused('endDate')}
-                    onBlur={() => setFocused(null)}
-                    className={inputCls}
-                    style={{ ...getFieldStyle('endDate', focused, errors), colorScheme: 'dark' }}
-                  />
-                  <FieldError msg={errors.endDate} />
-                </div>
-              </div>
+              {/* Invoice date + billing month/year selects (cross-browser safe) */}
+              {(() => {
+                const currentYear  = new Date().getFullYear()
+                const yearOptions  = Array.from({ length: 6 }, (_, i) => currentYear - 1 + i)
+                const selMonth     = form.billingMonthYear.split('-')[1] || ''
+                const selYear      = form.billingMonthYear.split('-')[0] || ''
 
-              {/* Billing month override */}
-              {form.startDate && (
-                <div className="mb-6">
-                  <Label>Billing Month Label</Label>
-                  <input
-                    value={form.billingMonth}
-                    onChange={e => set('billingMonth', e.target.value)}
-                    onFocus={() => setFocused('billingMonth')}
-                    onBlur={() => setFocused(null)}
-                    placeholder="e.g. November 2024"
-                    className={inputCls}
-                    style={getFieldStyle('billingMonth', focused, errors)}
-                  />
-                  <p className="mt-1 text-xs" style={{ color: '#8892B0' }}>
-                    Auto-filled from start date. Edit if the period spans two months.
-                  </p>
-                </div>
-              )}
+                function handleMonthSelect(month) {
+                  const year = selYear || String(currentYear)
+                  set('billingMonthYear', `${year}-${month}`)
+                }
+                function handleYearSelect(year) {
+                  const month = selMonth || '01'
+                  set('billingMonthYear', `${year}-${month}`)
+                }
 
-              {/* Dynamic day inputs */}
+                const selectStyle = (name) => ({
+                  ...getFieldStyle(name, focused, errors),
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                  cursor: 'pointer',
+                })
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
+                    <div>
+                      <Label required>Invoice Date</Label>
+                      <input
+                        type="date"
+                        value={form.invoiceDate}
+                        onChange={e => set('invoiceDate', e.target.value)}
+                        onFocus={() => setFocused('invoiceDate')}
+                        onBlur={() => setFocused(null)}
+                        className={inputCls}
+                        style={{ ...getFieldStyle('invoiceDate', focused, errors), colorScheme: 'dark' }}
+                      />
+                      <FieldError msg={errors.invoiceDate} />
+                    </div>
+
+                    <div>
+                      <Label required>Billing Month</Label>
+                      <select
+                        value={selMonth}
+                        onChange={e => handleMonthSelect(e.target.value)}
+                        onFocus={() => setFocused('billingMonthYear')}
+                        onBlur={() => setFocused(null)}
+                        className={inputCls}
+                        style={selectStyle('billingMonthYear')}
+                      >
+                        <option value="">Month</option>
+                        {MONTH_NAMES.map((name, i) => (
+                          <option key={i} value={String(i + 1).padStart(2, '0')}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <Label required>Year</Label>
+                      <select
+                        value={selYear}
+                        onChange={e => handleYearSelect(e.target.value)}
+                        onFocus={() => setFocused('billingYear')}
+                        onBlur={() => setFocused(null)}
+                        className={inputCls}
+                        style={selectStyle('billingYear')}
+                      >
+                        <option value="">Year</option>
+                        {yearOptions.map(y => (
+                          <option key={y} value={String(y)}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )
+              })()}
+              <FieldError msg={errors.billingMonthYear} />
+
+              {/* Weekly rows */}
               <AnimatePresence>
-                {days.length > 0 && (
+                {form.billingMonthYear && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
                   >
                     <div className="mb-3 flex items-center justify-between">
-                      <Label required>Hours per Day</Label>
+                      <Label required>Hours &amp; Focus by Week</Label>
                       <span className="text-xs font-semibold" style={{ color: '#64FFDA' }}>
                         Total: {totalHours} hrs
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {days.map(day => (
-                        <div key={day}>
-                          <div className="text-xs mb-1 font-medium" style={{ color: '#8892B0' }}>
-                            {formatDayLabel(day).split(',')[0]},&nbsp;
-                            {day.slice(5).replace('-', '/')}
+
+                    <div className="flex flex-col gap-3">
+                      {form.weeklyData.map((week, i) => (
+                        <div
+                          key={i}
+                          className="grid grid-cols-1 sm:grid-cols-[90px_1fr_100px] gap-3 items-start p-3 rounded-lg"
+                          style={{ backgroundColor: 'rgba(100,255,218,0.03)', border: '1px solid rgba(136,146,176,0.12)' }}
+                        >
+                          {/* Week label */}
+                          <div
+                            className="flex items-center justify-center h-10 rounded text-xs font-bold tracking-wide"
+                            style={{ backgroundColor: 'rgba(100,255,218,0.08)', color: '#64FFDA' }}
+                          >
+                            Week {i + 1}
                           </div>
+
+                          {/* Focus / deliverables */}
+                          <div>
+                            <input
+                              value={week.focus}
+                              onChange={e => setWeek(i, 'focus', e.target.value)}
+                              onFocus={() => setFocused(`focus-${i}`)}
+                              onBlur={() => setFocused(null)}
+                              placeholder="Primary focus / deliverables (optional)"
+                              className={inputCls}
+                              style={getFieldStyle(`focus-${i}`, focused, {})}
+                            />
+                          </div>
+
+                          {/* Hours */}
                           <div className="flex items-center gap-1.5">
                             <input
                               type="number"
                               min="0"
-                              max="24"
+                              max="999"
                               step="0.5"
-                              value={form.dailyHours[day] ?? ''}
-                              onChange={e => setHours(day, e.target.value)}
-                              onFocus={() => setFocused(`day-${day}`)}
+                              value={week.hours}
+                              onChange={e => setWeek(i, 'hours', e.target.value)}
+                              onFocus={() => setFocused(`hours-${i}`)}
                               onBlur={() => setFocused(null)}
                               placeholder="0"
-                              className="w-full px-3 py-2 rounded border text-sm text-center"
-                              style={{
-                                ...fieldBase,
-                                ...(focused === `day-${day}` ? fieldFocus : {}),
-                              }}
+                              className="w-full px-3 py-2.5 rounded border text-sm text-center"
+                              style={getFieldStyle(`hours-${i}`, focused, {})}
                             />
                             <span className="text-xs shrink-0" style={{ color: '#8892B0' }}>hrs</span>
                           </div>
                         </div>
                       ))}
                     </div>
-                    <FieldError msg={errors.dailyHours} />
+                    <FieldError msg={errors.weeklyData} />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -440,7 +471,6 @@ export default function InvoicePage() {
                   </div>
                   <FieldError msg={errors.billingRate} />
                 </div>
-                {/* Total breakdown */}
                 {totalHours > 0 && billingRate > 0 && (
                   <div className="sm:col-span-2 px-5 py-4 rounded-lg" style={{ backgroundColor: 'rgba(100,255,218,0.06)', border: '1px solid rgba(100,255,218,0.15)' }}>
                     <div className="text-xs mb-1" style={{ color: '#8892B0' }}>
@@ -468,7 +498,7 @@ export default function InvoicePage() {
                 <SectionTitle
                   num="5"
                   title="Payment Details"
-                  subtitle="Bank info that appears at the bottom of the invoice (your payout account)"
+                  subtitle="Bank info that appears on the invoice (your payout account)"
                 />
                 <div style={{ color: '#8892B0', flexShrink: 0 }}>
                   {payOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
